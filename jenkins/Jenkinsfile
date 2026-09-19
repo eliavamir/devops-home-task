@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+
+    environment {
+        // שנה את השם למשתמש ה-Docker Hub הבלעדי שלך
+        DOCKERHUB_CREDENTIALS = 'dockerhub-credentials-id'
+        DOCKER_IMAGE = 'your-dockerhub-username/devops-app'
+        APP_SERVER_IP = 'APP_SERVER_IP_PLACEHOLDER' // יעודכן לפי הפלט של Terraform
+        SSH_CREDENTIALS = 'app-server-ssh-key'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Lint Check') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install -r app/requirements.txt
+                    flake8 app/
+                '''
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pytest app/
+                '''
+            }
+        }
+
+        stage('Build & Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKERHUB_CREDENTIALS}") {
+                        def appImage = docker.build("${DOCKER_IMAGE}:${BUILD_NUMBER}")
+                        appImage.push()
+                        appImage.push('latest')
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to App Server') {
+            steps {
+                sshagent([SSH_CREDENTIALS]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@${APP_SERVER_IP} '
+                            docker pull ${DOCKER_IMAGE}:latest
+                            docker stop devops-app || true
+                            docker rm devops-app || true
+                            docker run -d --name devops-app -p 5000:5000 ${DOCKER_IMAGE}:latest
+                        '
+                    """
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh """
+                    sleep 5
+                    curl -f http://${APP_SERVER_IP}:5000/ || exit 1
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deployment completed successfully!'
+        }
+        failure {
+            echo 'Deployment failed.'
+        }
+    }
+}
