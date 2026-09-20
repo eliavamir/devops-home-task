@@ -56,7 +56,7 @@ pipeline {
             steps {
                 sshagent([SSH_CREDENTIALS]) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@${APP_SERVER_IP} '
+                        ssh -o StrictHostKeyChecking=no ubuntu@localhost
                             docker pull ${DOCKER_IMAGE}:latest
                             docker stop devops-app || true
                             docker rm devops-app || true
