@@ -37,13 +37,14 @@ pipeline {
         }
 
         stage('Build & Push Docker Image') {
-            steps {
+           steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKERHUB_CREDENTIALS}") {
-                        def appImage = docker.build("${DOCKER_IMAGE}:${BUILD_NUMBER}")
-                        appImage.push()
-                        appImage.push('latest')
-                    }
+                    // בנה את אימג' הדוקר (ודא שהנתיב ל-Dockerfile נכון, למשל '.' או './app')
+                    sh 'docker build -t eliavamir/devops-home-task:latest .'
+            
+                    // אם נדרש גם להתחבר ולדחוף ל-Docker Hub (אפשר להוסיף בהמשך כשתרצה)
+                    // sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin'
+                    // sh 'docker push eliavamir/devops-home-task:latest'
                 }
             }
         }
